@@ -14,7 +14,7 @@ interface FileExplorerProps {
 }
 
 export default function FileExplorer({ files, onFileSelect, activeFile, onExpandedChange }: FileExplorerProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleToggle = () => {
     const newExpanded = !isExpanded;

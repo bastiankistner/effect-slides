@@ -16,7 +16,7 @@ interface MultiFileEditorProps {
 
 export default function MultiFileEditor({ mainCode, mainLanguage = 'typescript', helperFiles = [] }: MultiFileEditorProps) {
   const [activeFile, setActiveFile] = useState('main.ts');
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   
   // Combine main file with helper files
   const allFiles: FileContent[] = [

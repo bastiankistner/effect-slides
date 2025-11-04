@@ -46,3 +46,15 @@
   z-index: 10000 !important;
 }
 
+/* Ensure emojis render properly even with text gradients */
+h1 {
+  font-variant-emoji: emoji;
+  font-feature-settings: "emoji";
+}
+
+/* Fallback: ensure emojis aren't affected by text-transparent */
+h1::after {
+  content: '';
+  display: inline;
+}
+

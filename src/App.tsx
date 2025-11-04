@@ -8,7 +8,7 @@ function App() {
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === ' ') {
+      if (e.key === 'ArrowRight') {
         e.preventDefault()
         setCurrentSlide((prev) => Math.min(prev + 1, slides.length - 1))
       } else if (e.key === 'ArrowLeft') {
@@ -30,7 +30,7 @@ function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="h-full flex flex-col">
-        <Slide slide={slides[currentSlide]} />
+        <Slide slide={slides[currentSlide]} slideKey={currentSlide} />
         <Navigation 
           currentSlide={currentSlide}
           totalSlides={slides.length}
