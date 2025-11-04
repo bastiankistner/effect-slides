@@ -25,3 +25,24 @@
   }
 }
 
+/* Fix Monaco Editor hover tooltips - render them outside overflow containers */
+.monaco-editor .monaco-overlayWidgets {
+  position: fixed !important;
+  z-index: 10000 !important;
+  pointer-events: none;
+}
+
+.monaco-editor .monaco-overlayWidgets .monaco-hover {
+  pointer-events: auto;
+  position: fixed !important;
+}
+
+.monaco-editor .monaco-hover {
+  z-index: 10000 !important;
+  position: fixed !important;
+}
+
+.monaco-editor .monaco-hover-content {
+  z-index: 10000 !important;
+}
+
