@@ -29,27 +29,27 @@ export const slides: SlideData[] = [
         </p>
       </>
     ),
-    code: `async function getUserProfile(id: string): Promise<Profile> {
-  try {
-    const user = await fetchUser(id);
-    try {
-      const posts = await fetchPosts(user.id);
-      try {
-        const comments = await fetchComments(posts[0].id);
-        return { user, posts, comments };
-      } catch (e) {
-        console.error('Comments failed', e); // e: unknown 😱
-        return { user, posts, comments: [] };
-      }
-    } catch (e) {
-      console.error('Posts failed', e);
-      return { user, posts: [], comments: [] };
-    }
-  } catch (e) {
-    console.error('User failed', e);
-    throw new Error('Failed to load profile');
-  }
-}`,
+    code: `import { Effect, Data } from 'effect';
+import { HttpClient } from '@effect/platform/HttpClient';
+
+// Define what can go wrong
+class UserNotFound extends Data.TaggedError('UserNotFound')<{ id: string }> {}
+class NetworkError extends Data.TaggedError('NetworkError')<{
+  message: string;
+}> {}
+
+// Function signature tells the truth ✨
+function getUserProfile(id: string): Effect.Effect<
+  Profile, // What you get
+  UserNotFound | NetworkError, // What can go wrong
+  HttpClient // What you need
+>;
+
+// Handle errors by type - compiler enforces it!
+const program = getUserProfile('123').pipe(
+  Effect.catchTag('UserNotFound', () => Effect.succeed(guestProfile)),
+  Effect.catchTag('NetworkError', () => Effect.retry({ times: 3 }))
+);`,
     language: 'typescript',
   },
   {
@@ -65,7 +65,8 @@ export const slides: SlideData[] = [
         </p>
       </>
     ),
-    code: `import { Effect, Data } from 'effect';
+    code: `import { Effect, Data, Context } from 'effect';
+import { HttpClient } from '@effect/platform/HttpClient';
 
 // Define what can go wrong
 class UserNotFound extends Data.TaggedError('UserNotFound')<{ id: string }> {}
@@ -111,7 +112,8 @@ const program = getUserProfile('123').pipe(
         </div>
       </>
     ),
-    code: `import { Effect, Data } from 'effect';
+    code: `import { Effect, Data, Context } from 'effect';
+import { HttpClient } from '@effect/platform/HttpClient';
 
 // Type definitions
 interface User { id: string; name: string; email: string }

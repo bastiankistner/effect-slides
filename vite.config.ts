@@ -1,51 +1,81 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { readdirSync, existsSync, readFileSync, statSync } from 'fs';
+import { join } from 'path';
 
 export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'copy-effect-types',
+      name: 'serve-effect-types',
       configureServer(server) {
-        // Serve Effect types from node_modules during dev
-        server.middlewares.use('/effect-types', (req, res, next) => {
-          const filePath = join(process.cwd(), 'node_modules/effect/dist/dts', req.url === '/' || req.url === '/index.d.ts' ? 'index.d.ts' : req.url.slice(1))
-          if (existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/typescript')
-            res.end(readFileSync(filePath, 'utf-8'))
-          } else {
-            next()
-          }
-        })
-      },
-      buildStart() {
-        // Copy Effect types to public directory for production build
-        const src = join(process.cwd(), 'node_modules/effect/dist/dts')
-        const dest = join(process.cwd(), 'public/effect-types')
-        if (existsSync(src)) {
-          if (!existsSync(dest)) {
-            mkdirSync(dest, { recursive: true })
-          }
-          // Copy index.d.ts and key module files
-          const filesToCopy = ['index.d.ts', 'Effect.d.ts', 'Data.d.ts', 'Context.d.ts']
-          filesToCopy.forEach(file => {
-            try {
-              const srcFile = join(src, file)
-              if (existsSync(srcFile)) {
-                copyFileSync(srcFile, join(dest, file))
-              }
-            } catch (e) {
-              console.warn(`Could not copy ${file}:`, e)
+        // Serve list of all Effect type files
+        server.middlewares.use('/effect-types-list', (req, res) => {
+          try {
+            const dtsDir = join(process.cwd(), 'node_modules/effect/dist/dts');
+            if (existsSync(dtsDir)) {
+              const files = readdirSync(dtsDir)
+                .filter((f) => f.endsWith('.d.ts') && !f.endsWith('.map'))
+                .map((f) => f.replace('.d.ts', ''));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(files));
+            } else {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Effect types not found' }));
             }
-          })
-        }
-      }
-    }
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(e) }));
+          }
+        });
+
+        // Serve list of all @effect/platform type files
+        server.middlewares.use('/platform-types-list', (req, res) => {
+          try {
+            const dtsDir = join(process.cwd(), 'node_modules/@effect/platform/dist/dts');
+            if (existsSync(dtsDir)) {
+              const files = readdirSync(dtsDir)
+                .filter((f) => f.endsWith('.d.ts') && !f.endsWith('.map'))
+                .map((f) => f.replace('.d.ts', ''));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(files));
+            } else {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Platform types not found' }));
+            }
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(e) }));
+          }
+        });
+
+        // Serve individual Effect type files
+        server.middlewares.use('/effect-types', (req, res, next) => {
+          const fileName = req.url?.slice(1) || 'index.d.ts';
+          const filePath = join(process.cwd(), 'node_modules/effect/dist/dts', fileName);
+          if (existsSync(filePath) && statSync(filePath).isFile()) {
+            res.setHeader('Content-Type', 'application/typescript');
+            res.end(readFileSync(filePath, 'utf-8'));
+          } else {
+            next();
+          }
+        });
+
+        // Serve individual @effect/platform type files
+        server.middlewares.use('/platform-types', (req, res, next) => {
+          const fileName = req.url?.slice(1) || 'index.d.ts';
+          const filePath = join(process.cwd(), 'node_modules/@effect/platform/dist/dts', fileName);
+          if (existsSync(filePath) && statSync(filePath).isFile()) {
+            res.setHeader('Content-Type', 'application/typescript');
+            res.end(readFileSync(filePath, 'utf-8'));
+          } else {
+            next();
+          }
+        });
+      },
+    },
   ],
   optimizeDeps: {
     include: ['monaco-editor'],
   },
-})
-
+});
