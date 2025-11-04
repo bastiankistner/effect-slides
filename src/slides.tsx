@@ -388,7 +388,7 @@ const program = getUserProfile('123').pipe(
         </div>
       </>
     ),
-    code: `import { Effect, Schedule, Duration } from 'effect';
+    code: `import { Effect, Schedule } from 'effect';
 import { fetchUser, fetchPosts, fetchComments } from './helpers';
 
 // Main program
@@ -406,7 +406,7 @@ const program = Effect.gen(function* () {
   // Retry with exponential backoff and jitter
   Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.jittered)),
   // Add timeout - fail if takes longer than 5 seconds
-  Effect.timeout(Duration.seconds(5)),
+  Effect.timeout("5 seconds"),
   // Wrap in tracing span for observability
   Effect.withSpan("getUserProfile")
 );
