@@ -119,18 +119,35 @@ const loadEffectTypes = async (): Promise<boolean> => {
   return typesLoadingPromise;
 };
 
+interface FileContent {
+  path: string;
+  content: string;
+  language?: string;
+}
+
 interface CodeEditorProps {
   code: string;
   language?: string;
+  files?: FileContent[];
+  defaultFile?: string;
+  activeFile?: string;
+  onFileChange?: (path: string) => void;
 }
 
 export default function CodeEditor({
   code,
   language = 'typescript',
+  files = [],
+  defaultFile,
+  activeFile: externalActiveFile,
+  onFileChange,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const modelsRef = useRef<Map<string, monaco.editor.ITextModel>>(new Map());
   const [typesReady, setTypesReady] = useState(false);
+  const [internalActiveFile, setInternalActiveFile] = useState(defaultFile || 'main.ts');
+  const activeFile = externalActiveFile || internalActiveFile;
 
   // Load types first, before rendering editor
   useEffect(() => {
@@ -246,14 +263,47 @@ export default function CodeEditor({
       });
     }
 
-    // Create model with code
-    const modelUri = monaco.Uri.parse(
-      `file:///slide-${Date.now()}-${Math.random()}.${
-        language === 'typescript' ? 'ts' : 'tsx'
-      }`
-    );
-    const model = monaco.editor.createModel(code, language, modelUri);
-    editor.setModel(model);
+    // Register all files in Monaco's file system
+    const allFiles = [
+      { path: defaultFile || 'main.ts', content: code, language },
+      ...files,
+    ];
+
+    // Create models for all files
+    allFiles.forEach((file) => {
+      const fileUri = monaco.Uri.parse(`file:///${file.path}`);
+      let model = monaco.editor.getModel(fileUri);
+      
+      if (!model) {
+        model = monaco.editor.createModel(
+          file.content,
+          file.language || language,
+          fileUri
+        );
+        modelsRef.current.set(file.path, model);
+      } else {
+        // Update existing model
+        model.setValue(file.content);
+      }
+    });
+
+    // Set the active file model - update when activeFile changes
+    const activeFileUri = monaco.Uri.parse(`file:///${activeFile}`);
+    let activeModel = monaco.editor.getModel(activeFileUri);
+    
+    if (!activeModel) {
+      const activeFileContent = allFiles.find(f => f.path === activeFile);
+      activeModel = monaco.editor.createModel(
+        activeFileContent?.content || code,
+        activeFileContent?.language || language,
+        activeFileUri
+      );
+      modelsRef.current.set(activeFile, activeModel);
+    }
+    
+    if (editor.getModel() !== activeModel) {
+      editor.setModel(activeModel);
+    }
     
     // Force layout update after a brief delay to ensure container is sized
     setTimeout(() => {
@@ -262,11 +312,24 @@ export default function CodeEditor({
 
     return () => {
       observer.disconnect();
-      model.dispose();
+      // Dispose all models
+      modelsRef.current.forEach((model) => model.dispose());
+      modelsRef.current.clear();
       editor.dispose();
       editorRef.current = null;
     };
-  }, [code, language, typesReady]);
+  }, [code, language, typesReady, files, activeFile, defaultFile]);
+
+  // Update editor model when activeFile changes externally
+  useEffect(() => {
+    if (editorRef.current && activeFile && typesReady) {
+      const activeFileUri = monaco.Uri.parse(`file:///${activeFile}`);
+      const model = monaco.editor.getModel(activeFileUri);
+      if (model && editorRef.current.getModel() !== model) {
+        editorRef.current.setModel(model);
+      }
+    }
+  }, [activeFile, typesReady]);
 
   if (!typesReady) {
     return (

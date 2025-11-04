@@ -1,11 +1,18 @@
 import { ReactNode } from 'react'
 
+export interface FileContent {
+  path: string
+  content: string
+  language?: string
+}
+
 export interface SlideData {
   title: string
   subtitle?: string
   content: ReactNode
   code?: string
   language?: string
+  helperFiles?: FileContent[]
 }
 
 export const slides: SlideData[] = [
@@ -85,6 +92,18 @@ async function getUserProfile(id: string): Promise<Profile> {
   }
 }
 
+// What can go wrong? Unknown! What do we need? Unknown!
+// Errors are all \`unknown\` or \`any\` - no type safety! 💀`,
+    language: 'typescript',
+    helperFiles: [
+      {
+        path: 'helpers.ts',
+        content: `// Type definitions (shared with main.ts)
+interface User { id: string; name: string; email: string }
+interface Post { id: string; userId: string; title: string }
+interface Comment { id: string; postId: string; content: string }
+interface Profile { user: User; posts: Post[]; comments: Comment[] }
+
 // Helper function (not shown - but needed)
 function getGuestProfile(): Profile {
   return {
@@ -92,11 +111,10 @@ function getGuestProfile(): Profile {
     posts: [],
     comments: []
   };
-}
-
-// What can go wrong? Unknown! What do we need? Unknown!
-// Errors are all \`unknown\` or \`any\` - no type safety! 💀`,
-    language: 'typescript',
+}`,
+        language: 'typescript',
+      },
+    ],
   },
   {
     title: 'Meet Effect',
@@ -173,44 +191,8 @@ const program = getUserProfile('123').pipe(
         </div>
       </>
     ),
-    code: `import { Effect, Data, Context } from 'effect';
-import { HttpClient } from '@effect/platform/HttpClient';
-
-// Type definitions
-interface User { id: string; name: string; email: string }
-interface Post { id: string; userId: string; title: string }
-interface Comment { id: string; postId: string; content: string }
-interface Profile { user: User; posts: Post[]; comments: Comment[] }
-
-// Error definitions
-class UserNotFound extends Data.TaggedError('UserNotFound')<{ id: string }> {}
-class PostError extends Data.TaggedError('PostError')<{ userId: string }> {}
-class CommentError extends Data.TaggedError('CommentError')<{ postId: string }> {}
-
-// Function definitions - hover to see their Effect types!
-function fetchUser(id: string): Effect.Effect<
-  User,                    // Success: What you get
-  UserNotFound,             // Error: What can go wrong
-  HttpClient               // Requirement: What you need
-> {
-  return Effect.succeed({ id, name: 'John', email: 'john@example.com' });
-}
-
-function fetchPosts(userId: string): Effect.Effect<
-  Post[],                  // Success: Array of posts
-  PostError,               // Error: Post-specific errors
-  HttpClient               // Requirement: HTTP client needed
-> {
-  return Effect.succeed([{ id: '1', userId, title: 'My Post' }]);
-}
-
-function fetchComments(postId: string): Effect.Effect<
-  Comment[],               // Success: Array of comments
-  CommentError,            // Error: Comment-specific errors
-  HttpClient               // Requirement: HTTP client needed
-> {
-  return Effect.succeed([{ id: '1', postId, content: 'Great post!' }]);
-}
+    code: `import { Effect } from 'effect';
+import { fetchUser, fetchPosts, fetchComments } from './helpers';
 
 // Main program - hover over 'program' to see the full type!
 const id = 'user-123';
@@ -228,6 +210,57 @@ const program = Effect.gen(function* () {
 // Hover over 'program' above to see: Effect<Profile, UserNotFound | PostError | CommentError, HttpClient>
 // All errors tracked. All dependencies known. Zero surprises. 🎯`,
     language: 'typescript',
+    helperFiles: [
+      {
+        path: 'types.ts',
+        content: `import { Data } from 'effect';
+
+// Type definitions
+export interface User { id: string; name: string; email: string }
+export interface Post { id: string; userId: string; title: string }
+export interface Comment { id: string; postId: string; content: string }
+export interface Profile { user: User; posts: Post[]; comments: Comment[] }
+
+// Error definitions
+export class UserNotFound extends Data.TaggedError('UserNotFound')<{ id: string }> {}
+export class PostError extends Data.TaggedError('PostError')<{ userId: string }> {}
+export class CommentError extends Data.TaggedError('CommentError')<{ postId: string }> {}`,
+        language: 'typescript',
+      },
+      {
+        path: 'helpers.ts',
+        content: `import { Effect } from 'effect';
+import { HttpClient } from '@effect/platform/HttpClient';
+import type { User, Post, Comment } from './types';
+import { UserNotFound, PostError, CommentError } from './types';
+
+// Function definitions - hover to see their Effect types!
+export function fetchUser(id: string): Effect.Effect<
+  User,                    // Success: What you get
+  UserNotFound,             // Error: What can go wrong
+  HttpClient               // Requirement: What you need
+> {
+  return Effect.succeed({ id, name: 'John', email: 'john@example.com' });
+}
+
+export function fetchPosts(userId: string): Effect.Effect<
+  Post[],                  // Success: Array of posts
+  PostError,               // Error: Post-specific errors
+  HttpClient               // Requirement: HTTP client needed
+> {
+  return Effect.succeed([{ id: '1', userId, title: 'My Post' }]);
+}
+
+export function fetchComments(postId: string): Effect.Effect<
+  Comment[],               // Success: Array of comments
+  CommentError,            // Error: Comment-specific errors
+  HttpClient               // Requirement: HTTP client needed
+> {
+  return Effect.succeed([{ id: '1', postId, content: 'Great post!' }]);
+}`,
+        language: 'typescript',
+      },
+    ],
   },
   {
     title: 'Dependency Injection for Free',

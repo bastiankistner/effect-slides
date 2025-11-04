@@ -1,4 +1,11 @@
 import CodeEditor from './CodeEditor'
+import MultiFileEditor from './MultiFileEditor'
+
+interface FileContent {
+  path: string
+  content: string
+  language?: string
+}
 
 interface SlideData {
   title: string
@@ -6,6 +13,7 @@ interface SlideData {
   content: React.ReactNode
   code?: string
   language?: string
+  helperFiles?: FileContent[]
 }
 
 interface SlideProps {
@@ -32,15 +40,15 @@ export default function Slide({ slide }: SlideProps) {
 
         {/* Content Layout */}
         {hasCode ? (
-          <div className="flex gap-6 items-start" style={{ overflow: 'visible' }}>
-            {/* Left column: Text content (1/3) */}
-            <div className="flex-[1] space-y-4 min-w-0 max-w-[28%]">
+          <div className="grid grid-cols-[1fr_2fr] gap-6 items-start">
+            {/* Left column: Text content (1fr) */}
+            <div className="space-y-4 min-w-0">
               {slide.content}
             </div>
             
-            {/* Right column: Code (larger) - Wrapper allows hover overflow */}
-            <div className="flex-[3] relative" style={{ overflow: 'visible' }}>
-              {/* Outer container with rounded corners - only clips direct children, not overlays */}
+            {/* Right column: Code (2fr) - Contains sidebar, hover tooltips use fixed positioning */}
+            <div className="relative overflow-hidden">
+              {/* Outer container with rounded corners - clips direct children */}
               <div className="rounded-xl overflow-hidden border border-gray-700 shadow-2xl bg-[#1e1e1e] flex flex-col relative" style={{ isolation: 'isolate' }}>
                 <div className="bg-gray-800 px-2 py-1 border-b border-gray-700 flex items-center gap-2 flex-shrink-0">
                   <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -54,7 +62,15 @@ export default function Slide({ slide }: SlideProps) {
                   </span>
                 </div>
                 <div className="flex-1 overflow-auto" style={{ minHeight: '500px', maxHeight: '75vh' }}>
-                  <CodeEditor code={slide.code || ''} language={slide.language || 'typescript'} />
+                  {slide.helperFiles && slide.helperFiles.length > 0 ? (
+                    <MultiFileEditor
+                      mainCode={slide.code || ''}
+                      mainLanguage={slide.language || 'typescript'}
+                      helperFiles={slide.helperFiles}
+                    />
+                  ) : (
+                    <CodeEditor code={slide.code || ''} language={slide.language || 'typescript'} />
+                  )}
                 </div>
               </div>
             </div>
