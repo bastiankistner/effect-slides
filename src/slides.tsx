@@ -18,7 +18,7 @@ export interface SlideData {
 
 export const slides: SlideData[] = [
   {
-    title: 'How I Stopped Trying (and 😭ing!)',
+    title: 'How I Stopped Trying\n(and 😭ing!)',
     subtitle: "Effect: TypeScript's Missing Superpower",
     content: (
       <div className="text-center">
@@ -800,17 +800,51 @@ const stream = Stream.fromIterable([1, 2, 3])
           <div className="flex items-start gap-3">
             <span className="text-effect-primary font-bold">3.</span>
             <span className="text-gray-300">
-              <strong>Testable by design</strong> - Mock anything with layers
+              <strong>Testable by design</strong> - Mock anything with layers.{' '}
+              <a
+                href="https://github.com/Effect-TS/effect/tree/main/packages/vitest"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-effect-secondary hover:underline"
+              >
+                @effect/vitest
+              </a>{' '}
+              plays well with Vitest
             </span>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-effect-primary font-bold">4.</span>
             <span className="text-gray-300">
-              <strong>Production observability</strong> - OpenTelemetry built-in
+              <strong>Production observability</strong> - OpenTelemetry
+              built-in.{' '}
+              <a
+                href="https://effect.website/docs/error-management/expected-errors/#effectfn"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-effect-secondary hover:underline"
+              >
+                Effect.fn
+              </a>{' '}
+              has built-in tracing
             </span>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-effect-primary font-bold">5.</span>
+            <span className="text-gray-300">
+              <strong>Enhanced IDE support</strong> -{' '}
+              <a
+                href="https://github.com/Effect-TS/language-service"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-effect-secondary hover:underline"
+              >
+                @effect/language-service
+              </a>{' '}
+              provides an LSP for your IDEs
+            </span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-effect-primary font-bold">6.</span>
             <span className="text-gray-300">
               <strong>Incremental adoption</strong> - Start small, grow
               gradually
@@ -863,26 +897,6 @@ const stream = Stream.fromIterable([1, 2, 3])
           <div className="flex items-center gap-3">
             <span className="text-2xl">⚡</span>
             <span className="text-gray-300">Start with one function</span>
-          </div>
-        </div>
-        <div className="mt-8 p-6 bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg border border-gray-600">
-          <p className="text-xl text-gray-300 mb-4">
-            <strong>The transformation:</strong>
-          </p>
-          <div className="space-y-3">
-            <p className="text-red-400">
-              <span className="font-mono">// From this nightmare...</span>
-            </p>
-            <p className="text-gray-400 font-mono text-sm">
-              try {'{'} try {'{'} try {'{'} ... {'}'} catch {'{'} ... {'}'}{' '}
-              {'}'} catch {'{'} ... {'}'} {'}'} catch {'{'} ... {'}'}
-            </p>
-            <p className="text-green-400 mt-4">
-              <span className="font-mono">// To this dream...</span>
-            </p>
-            <p className="text-gray-300 font-mono text-sm">
-              pipe(fetchUser, flatMap(getPosts), catchTag("NotFound", ...))
-            </p>
           </div>
         </div>
         <p className="text-3xl text-center mt-12 text-effect-primary font-bold">

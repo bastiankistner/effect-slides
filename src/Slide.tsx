@@ -25,26 +25,31 @@ export default function Slide({ slide, slideKey }: SlideProps) {
   const hasCode = !!slide.code
   
   return (
-    <div className="flex-1 flex flex-col items-start justify-start p-3 sm:p-4 md:p-6 slide-enter overflow-hidden">
+    <div className={`flex-1 flex flex-col p-3 sm:p-4 md:p-6 slide-enter overflow-hidden ${hasCode ? 'items-start justify-start' : 'items-center justify-center'}`}>
       <div className={`w-full flex-1 flex flex-col min-h-0 ${hasCode ? 'max-w-[98%] xl:max-w-[95%]' : 'max-w-6xl'}`}>
         {/* Header */}
-        <div className="mb-3 md:mb-4 flex-shrink-0">
+        <div className={`flex-shrink-0 ${hasCode ? 'mb-3 md:mb-4' : 'mb-4 md:mb-6 text-center'}`}>
           {slide.subtitle && (
-            <div className="text-effect-primary text-lg font-medium mb-2">
+            <div className={`text-effect-primary font-medium ${hasCode ? 'text-lg mb-2' : 'text-xl md:text-2xl mb-3 md:mb-4'}`}>
               {slide.subtitle}
             </div>
           )}
-          <h1 className="text-4xl font-bold mb-3 md:mb-4 leading-tight">
-            {slide.title.split('😭').map((part, i, arr) => 
-              i < arr.length - 1 ? (
-                <span key={i}>
-                  <span className="bg-gradient-to-r from-effect-primary to-effect-secondary bg-clip-text text-transparent">{part}</span>
-                  <span className="text-white">😭</span>
-                </span>
-              ) : (
-                <span key={i} className="bg-gradient-to-r from-effect-primary to-effect-secondary bg-clip-text text-transparent">{part}</span>
-              )
-            )}
+          <h1 className={`font-bold leading-tight ${hasCode ? 'text-4xl mb-3 md:mb-4' : 'text-5xl md:text-6xl lg:text-7xl mb-4 md:mb-6'}`}>
+            {slide.title.split('\n').map((line, lineIdx) => (
+              <span key={lineIdx}>
+                {line.split('😭').map((part, i, arr) => 
+                  i < arr.length - 1 ? (
+                    <span key={i}>
+                      <span className="bg-gradient-to-r from-effect-primary to-effect-secondary bg-clip-text text-transparent">{part}</span>
+                      <span className="text-white">😭</span>
+                    </span>
+                  ) : (
+                    <span key={i} className="bg-gradient-to-r from-effect-primary to-effect-secondary bg-clip-text text-transparent">{part}</span>
+                  )
+                )}
+                {lineIdx < slide.title.split('\n').length - 1 && <br />}
+              </span>
+            ))}
           </h1>
         </div>
 
@@ -87,7 +92,7 @@ export default function Slide({ slide, slideKey }: SlideProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="flex-1 flex flex-col items-center justify-center space-y-6 text-center text-lg md:text-xl lg:text-2xl">
             {slide.content}
           </div>
         )}
