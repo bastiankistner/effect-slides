@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as monaco from 'monaco-editor'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
@@ -15,6 +15,129 @@ if (typeof window !== 'undefined' && !(window as any).MonacoEnvironment) {
   }
 }
 
+// Global flag to track if Effect types have been loaded
+let effectTypesLoaded = false
+let effectTypesLoadingPromise: Promise<boolean> | null = null
+
+// Load Effect types globally (once for all editor instances)
+const loadEffectTypesGlobal = async (): Promise<boolean> => {
+  if (effectTypesLoaded) {
+    return true
+  }
+  
+  if (effectTypesLoadingPromise) {
+    return effectTypesLoadingPromise
+  }
+  
+  effectTypesLoadingPromise = (async () => {
+    try {
+      // Load all type files in parallel
+      const [effectIndexResponse, effectModuleResponse, dataModuleResponse, contextModuleResponse] = await Promise.all([
+        fetch('/effect-types/index.d.ts'),
+        fetch('/effect-types/Effect.d.ts'),
+        fetch('/effect-types/Data.d.ts'),
+        fetch('/effect-types/Context.d.ts').catch(() => ({ ok: false } as Response)), // Context might not exist
+      ])
+      
+      if (effectIndexResponse.ok) {
+        const effectIndexTypes = await effectIndexResponse.text()
+        
+        // Load dependencies FIRST - index.d.ts references them as "./Effect.js", "./Data.js", etc.
+        // These MUST be loaded before index.d.ts so relative imports can resolve
+        if (effectModuleResponse.ok) {
+          const effectModuleTypes = await effectModuleResponse.text()
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            effectModuleTypes,
+            'file:///node_modules/effect/Effect.js.d.ts'
+          )
+        }
+        
+        if (dataModuleResponse.ok) {
+          const dataModuleTypes = await dataModuleResponse.text()
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            dataModuleTypes,
+            'file:///node_modules/effect/Data.js.d.ts'
+          )
+        }
+        
+        if (contextModuleResponse.ok) {
+          const contextModuleTypes = await contextModuleResponse.text()
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            contextModuleTypes,
+            'file:///node_modules/effect/Context.js.d.ts'
+          )
+        }
+        
+        // Configure module resolution
+        const currentOptions = monaco.languages.typescript.typescriptDefaults.getCompilerOptions()
+        monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+          ...currentOptions,
+          baseUrl: 'file:///',
+          paths: {
+            ...(currentOptions.paths || {}),
+            'effect': ['node_modules/effect/index.d.ts'],
+            'effect/*': ['node_modules/effect/*.js.d.ts']
+          },
+          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          resolveJsonModule: true,
+        })
+        
+        // Load index.d.ts as a regular library file first (for relative import resolution)
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(
+          effectIndexTypes,
+          'file:///node_modules/effect/index.d.ts'
+        )
+        
+        // CRITICAL: Transform relative imports to absolute paths, then wrap in module declaration
+        // When we wrap index.d.ts, relative imports like "./Effect.js" break
+        // So we transform them to absolute paths that Monaco can resolve
+        const transformedIndexTypes = effectIndexTypes.replace(
+          /from\s+["'](\.\/[^"']+)["']/g,
+          (match, relativePath) => {
+            // Transform "./Effect.js" to "file:///node_modules/effect/Effect.js.d.ts"
+            const moduleName = relativePath.replace(/^\.\//, '').replace(/\.js$/, '.js.d.ts')
+            return `from 'file:///node_modules/effect/${moduleName}'`
+          }
+        )
+        
+        const wrappedIndexTypes = `declare module 'effect' {\n${transformedIndexTypes}\n}`
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(
+          wrappedIndexTypes,
+          'file:///effect-module.d.ts'
+        )
+        
+        // Force Monaco to reload all extra libraries
+        // This ensures the module declaration is properly recognized
+        const allModels = monaco.editor.getModels()
+        allModels.forEach(model => {
+          if (model.getLanguageId() === 'typescript' || model.getLanguageId() === 'typescriptreact') {
+            const currentValue = model.getValue()
+            model.setValue('')
+            setTimeout(() => model.setValue(currentValue), 0)
+          }
+        })
+        
+        console.log('Effect types loaded successfully', {
+          effectModule: effectModuleResponse.ok,
+          dataModule: dataModuleResponse.ok,
+          contextModule: contextModuleResponse.ok,
+          indexTypes: effectIndexTypes.length
+        })
+        effectTypesLoaded = true
+        return true
+      } else {
+        throw new Error('Could not fetch Effect types')
+      }
+    } catch (e) {
+      console.warn('Could not load Effect types:', e)
+      effectTypesLoadingPromise = null
+      return false
+    }
+  })()
+  
+  return effectTypesLoadingPromise
+}
+
 interface CodeEditorProps {
   code: string
   language?: string
@@ -23,9 +146,31 @@ interface CodeEditorProps {
 export default function CodeEditor({ code, language = 'typescript' }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const [typesReady, setTypesReady] = useState(false)
 
+  // Load types first, before rendering editor
   useEffect(() => {
-    if (!containerRef.current) return
+    let cancelled = false
+    
+    loadEffectTypesGlobal().then(() => {
+      if (!cancelled) {
+        // Give Monaco time to process types
+        setTimeout(() => {
+          if (!cancelled) {
+            setTypesReady(true)
+          }
+        }, 200)
+      }
+    })
+    
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Create editor only after types are ready
+  useEffect(() => {
+    if (!containerRef.current || !typesReady) return
 
     // Clean up previous editor if it exists
     if (editorRef.current) {
@@ -56,9 +201,9 @@ export default function CodeEditor({ code, language = 'typescript' }: CodeEditor
       hover: {
         enabled: true,
         delay: 300,
-        above: true, // Show above when possible, but will show below if not enough space
+        above: true,
       },
-      // Enable quick info (IntelliSense) - this is what shows hover tooltips
+      // Enable quick info (IntelliSense)
       quickSuggestions: {
         other: false,
         comments: false,
@@ -119,7 +264,13 @@ export default function CodeEditor({ code, language = 'typescript' }: CodeEditor
       typeRoots: ['node_modules/@types'],
       // Enable strict type checking for better hover info
       strict: true,
-      noImplicitAny: false,
+      noImplicitAny: true, // Enable to catch type issues
+      strictNullChecks: true,
+      strictFunctionTypes: true,
+      strictBindCallApply: true,
+      strictPropertyInitialization: true,
+      noUnusedLocals: false,
+      noUnusedParameters: false,
     })
     
     // Enable hover provider for TypeScript
@@ -129,126 +280,10 @@ export default function CodeEditor({ code, language = 'typescript' }: CodeEditor
       noSuggestionDiagnostics: false,
     })
 
-    // Add basic Effect type definitions for IntelliSense
-    const effectTypes = `
-// Effect Core Types
-declare namespace Effect {
-  type Effect<A, E = never, R = never> = {
-    readonly _tag: 'Effect'
-    readonly _A: A
-    readonly _E: E
-    readonly _R: R
-  }
-  
-  function gen<A, E, R>(
-    f: () => Generator<Effect<any, any, any>, A, any>
-  ): Effect<A, E, R>
-  
-  function succeed<A>(value: A): Effect<A, never, never>
-  function fail<E>(error: E): Effect<never, E, never>
-  
-  function catchTag<K extends string>(
-    tag: K,
-    f: (error: Extract<any, { _tag: K }>) => Effect<any, any, any>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, Exclude<E, { _tag: K }>, R>
-  
-  function retry(options: { times: number }): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  
-  function pipe<A, E, R>(
-    self: Effect<A, E, R>,
-    ...fns: any[]
-  ): Effect<any, any, any>
-  
-  function log(message: string): Effect<void, never, never>
-  function all<A, E, R>(effects: ReadonlyArray<Effect<A, E, R>>): Effect<ReadonlyArray<A>, E, R>
-  function provide<R>(service: R): <A, E>(self: Effect<A, E, R>) => Effect<A, E, never>
-}
-
-// Data.TaggedError
-declare namespace Data {
-  class TaggedError<T extends string, A = {}> extends Error {
-    readonly _tag: T
-    readonly props: A
-    constructor(tag: T, props: A)
-  }
-  
-  function TaggedError<T extends string, A = {}>(
-    tag: T
-  ): new (props: A) => TaggedError<T, A>
-}
-
-// Context.Tag
-declare namespace Context {
-  interface Tag<A> {
-    readonly _tag: symbol
-    readonly _A: A
-  }
-  
-  function Tag<A>(name: string): Tag<A>
-}
-
-// Semaphore
-declare namespace Semaphore {
-  function make(permits: number): Effect<Semaphore, never, never>
-  
-  interface Semaphore {
-    withPermits(n: number): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  }
-}
-
-// Schema
-declare namespace Schema {
-  namespace Struct {
-    function <T extends Record<string, any>>(props: T): any
-  }
-  
-  namespace Number {
-    const Number: any
-  }
-  
-  namespace String {
-    const String: any
-    function pipe(...fns: any[]): any
-  }
-  
-  function pattern(regex: RegExp): (schema: any) => any
-}
-
-// TestClock
-declare namespace TestClock {
-  function adjust(duration: string): Effect<void, never, never>
-}
-
-// Import declarations for better IntelliSense
-declare module 'effect' {
-  export * from 'effect/Effect'
-  export * from 'effect/Data'
-  export * from 'effect/Context'
-  export * from 'effect/Semaphore'
-  export * from 'effect/TestClock'
-}
-`
-    
-    // Add type definitions
-    const libUri = 'file:///effect.d.ts'
-    monaco.languages.typescript.typescriptDefaults.addExtraLib(
-      effectTypes,
-      libUri
-    )
-    
-    // Create a unique model for each slide to ensure proper type checking
+    // Create model with code - types are already loaded
     const modelUri = monaco.Uri.parse(`file:///slide-${Date.now()}-${Math.random()}.${language === 'typescript' ? 'ts' : 'tsx'}`)
     const model = monaco.editor.createModel(code, language, modelUri)
-    
-    // Update editor to use the model
     editor.setModel(model)
-    
-    // Wait a bit for the language service to be ready, then ensure hover is enabled
-    setTimeout(() => {
-      editor.updateOptions({
-        hover: { enabled: true, delay: 300 },
-      })
-    }, 100)
 
     return () => {
       observer.disconnect()
@@ -256,7 +291,15 @@ declare module 'effect' {
       editor.dispose()
       editorRef.current = null
     }
-  }, [code, language])
+  }, [code, language, typesReady])
+
+  if (!typesReady) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-gray-400 text-sm">Loading types...</div>
+      </div>
+    )
+  }
 
   return (
     <div
