@@ -388,7 +388,7 @@ const program = getUserProfile('123').pipe(
         </div>
       </>
     ),
-    code: `import { Effect } from 'effect';
+    code: `import { Effect, Schedule, Duration } from 'effect';
 import { fetchUser, fetchPosts, fetchComments } from './helpers';
 
 // Main program
@@ -402,7 +402,14 @@ const program = Effect.gen(function* () {
   yield* Effect.log(\`Loaded \${comments.length} comments\`);
 
   return { user, posts, comments };
-});
+}).pipe(
+  // Retry with exponential backoff and jitter
+  Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.jittered)),
+  // Add timeout - fail if takes longer than 5 seconds
+  Effect.timeout(Duration.seconds(5)),
+  // Wrap in tracing span for observability
+  Effect.withSpan("getUserProfile")
+);
 
 // All errors tracked. All dependencies known. Zero surprises. 🎯`,
     language: 'typescript',
