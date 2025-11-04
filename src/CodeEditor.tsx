@@ -170,7 +170,13 @@ export default function CodeEditor({
       readOnly: true,
       minimap: { enabled: false },
       lineNumbers: 'on',
-      scrollBeyondLastLine: false,
+      scrollBeyondLastLine: true,
+      scrollbar: {
+        vertical: 'auto',
+        horizontal: 'auto',
+        verticalScrollbarSize: 10,
+        horizontalScrollbarSize: 10,
+      },
       fontSize: 14,
       lineHeight: 22,
       fontFamily: 'Fira Code, Monaco, Menlo, monospace',
@@ -178,8 +184,10 @@ export default function CodeEditor({
       wordWrap: 'on',
       automaticLayout: true,
       padding: {
-        top: 20,
-        bottom: 20,
+        top: 4,
+        bottom: 4,
+        left: 4,
+        right: 4,
       },
       // Enable hover tooltips
       hover: {
@@ -246,6 +254,11 @@ export default function CodeEditor({
     );
     const model = monaco.editor.createModel(code, language, modelUri);
     editor.setModel(model);
+    
+    // Force layout update after a brief delay to ensure container is sized
+    setTimeout(() => {
+      editor.layout();
+    }, 100);
 
     return () => {
       observer.disconnect();
@@ -267,7 +280,7 @@ export default function CodeEditor({
     <div
       ref={containerRef}
       className="h-full w-full relative monaco-editor-container"
-      style={{ minHeight: '400px', overflow: 'visible' }}
+      style={{ minHeight: '500px', height: '100%', overflow: 'visible' }}
     />
   );
 }

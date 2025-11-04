@@ -29,27 +29,73 @@ export const slides: SlideData[] = [
         </p>
       </>
     ),
-    code: `import { Effect, Data } from 'effect';
-import { HttpClient } from '@effect/platform/HttpClient';
+    code: `// Type definitions
+interface User { id: string; name: string; email: string }
+interface Post { id: string; userId: string; title: string }
+interface Comment { id: string; postId: string; content: string }
+interface Profile { user: User; posts: Post[]; comments: Comment[] }
 
-// Define what can go wrong
-class UserNotFound extends Data.TaggedError('UserNotFound')<{ id: string }> {}
-class NetworkError extends Data.TaggedError('NetworkError')<{
-  message: string;
-}> {}
+// The try/catch hell 🔥
+async function getUserProfile(id: string): Promise<Profile> {
+  try {
+    const user = await fetchUser(id);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    try {
+      const posts = await fetchPosts(user.id);
+      
+      try {
+        const comments = await fetchComments(posts[0]?.id);
+        if (!comments) {
+          throw new Error('Failed to fetch comments');
+        }
+        
+        return { user, posts, comments };
+      } catch (error) {
+        console.error('Comment error:', error);
+        // Try to recover...
+        try {
+          const retryComments = await fetchComments(posts[0]?.id);
+          return { user, posts, comments: retryComments || [] };
+        } catch (retryError) {
+          // Give up on comments
+          return { user, posts, comments: [] };
+        }
+      }
+    } catch (error) {
+      console.error('Post error:', error);
+      // What type of error? Who knows! 🤷
+      if (error instanceof Error && error.message.includes('network')) {
+        // Retry logic here? Maybe?
+        throw new Error('Network issue');
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('User error:', error);
+    // Is this UserNotFound? NetworkError? Something else?
+    // TypeScript doesn't know! 😱
+    if (error instanceof Error && error.message === 'User not found') {
+      return getGuestProfile();
+    }
+    // Retry? Log? Give up?
+    throw error; // Good luck debugging this!
+  }
+}
 
-// Function signature tells the truth ✨
-function getUserProfile(id: string): Effect.Effect<
-  Profile, // What you get
-  UserNotFound | NetworkError, // What can go wrong
-  HttpClient // What you need
->;
+// Helper function (not shown - but needed)
+function getGuestProfile(): Profile {
+  return {
+    user: { id: 'guest', name: 'Guest', email: 'guest@example.com' },
+    posts: [],
+    comments: []
+  };
+}
 
-// Handle errors by type - compiler enforces it!
-const program = getUserProfile('123').pipe(
-  Effect.catchTag('UserNotFound', () => Effect.succeed(guestProfile)),
-  Effect.catchTag('NetworkError', () => Effect.retry({ times: 3 }))
-);`,
+// What can go wrong? Unknown! What do we need? Unknown!
+// Errors are all \`unknown\` or \`any\` - no type safety! 💀`,
     language: 'typescript',
   },
   {
@@ -68,14 +114,27 @@ const program = getUserProfile('123').pipe(
     code: `import { Effect, Data, Context } from 'effect';
 import { HttpClient } from '@effect/platform/HttpClient';
 
+// Type definitions
+interface User { id: string; name: string; email: string }
+interface Post { id: string; userId: string; title: string }
+interface Comment { id: string; postId: string; content: string }
+interface Profile { user: User; posts: Post[]; comments: Comment[] }
+
 // Define what can go wrong
 class UserNotFound extends Data.TaggedError('UserNotFound')<{ id: string }> {}
 class NetworkError extends Data.TaggedError('NetworkError')<{
   message: string;
 }> {}
 
+// Guest profile fallback
+const guestProfile: Profile = {
+  user: { id: 'guest', name: 'Guest User', email: 'guest@example.com' },
+  posts: [],
+  comments: []
+};
+
 // Function signature tells the truth ✨
-function getUserProfile(id: string): Effect<
+function getUserProfile(id: string): Effect.Effect<
   Profile, // What you get
   UserNotFound | NetworkError, // What can go wrong
   HttpClient // What you need
@@ -84,7 +143,9 @@ function getUserProfile(id: string): Effect<
 // Handle errors by type - compiler enforces it!
 const program = getUserProfile('123').pipe(
   Effect.catchTag('UserNotFound', () => Effect.succeed(guestProfile)),
-  Effect.catchTag('NetworkError', () => Effect.retry({ times: 3 }))
+  Effect.catchTag('NetworkError', () => 
+    getUserProfile('123').pipe(Effect.retry({ times: 3 }))
+  )
 );`,
     language: 'typescript',
   },
